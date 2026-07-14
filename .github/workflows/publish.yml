@@ -1,0 +1,89 @@
+name: Publish Node SDK
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: publish-node-sdk
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build, Publish, and Release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve version
+        id: versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_tag="${GITHUB_REF_NAME}"
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Release tag must look like v3.0.0"
+            exit 1
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "version=${release_tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@latest
+
+      - name: Verify package metadata
+        run: |
+          node - <<'NODE'
+          const pkg = require("./package.json");
+          if (pkg.name !== "cs2cap") {
+            throw new Error(`Expected npm name cs2cap, got ${pkg.name}`);
+          }
+          if (pkg.version !== "${{ steps.versions.outputs.version }}") {
+            throw new Error(`Expected npm version ${{ steps.versions.outputs.version }}, got ${pkg.version}`);
+          }
+          NODE
+
+      - name: Preflight npm package version
+        run: |
+          if npm view "cs2cap@${{ steps.versions.outputs.version }}" version >/dev/null 2>&1; then
+            echo "::error::cs2cap@${{ steps.versions.outputs.version }} already exists on npm"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Pack
+        id: npm_pack
+        run: |
+          set -euo pipefail
+          package_file="$(npm pack --json | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0, "utf8")); console.log(data[0].filename)')"
+          echo "package_file=${package_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to npm (OIDC trusted publishing)
+        run: npm publish --access public
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versions.outputs.release_tag }}
+          name: CS2Cap Node SDK ${{ steps.versions.outputs.release_tag }}
+          body: |
+            `npm install cs2cap@${{ steps.versions.outputs.version }}`
+          files: |
+            ${{ steps.npm_pack.outputs.package_file }}

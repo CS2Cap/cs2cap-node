@@ -1,0 +1,33 @@
+{
+  "name": "cs2cap",
+  "version": "3.0.0",
+  "description": "A TypeScript SDK client for the CS2Cap API.",
+  "author": "CS2Cap",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CS2Cap/cs2cap-node.git"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "module": "./dist/esm/index.js",
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc && tsc -p tsconfig.esm.json",
+    "prepare": "npm run build",
+    "example": "tsx"
+  },
+  "devDependencies": {
+    "typescript": "^4.0 || ^5.0",
+    "tsx": "^4.20.0"
+  },
+  "license": "MIT",
+  "homepage": "https://cs2cap.com",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  }
+}
