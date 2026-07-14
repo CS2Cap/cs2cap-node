@@ -72,7 +72,10 @@ jobs:
         id: npm_pack
         run: |
           set -euo pipefail
-          package_file="$(npm pack --json | node -e 'const fs=require("fs"); const data=JSON.parse(fs.readFileSync(0, "utf8")); console.log(data[0].filename)')"
+          # npm pack prints the created tarball filename as its last stdout
+          # line on every npm major; --json output shape varies across 10/11.
+          package_file="$(npm pack | tail -n 1)"
+          [[ -f "$package_file" ]] || { echo "::error::npm pack did not produce ${package_file}"; exit 1; }
           echo "package_file=${package_file}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to npm (OIDC trusted publishing)
